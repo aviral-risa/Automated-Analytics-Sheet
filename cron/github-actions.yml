@@ -1,0 +1,72 @@
+# =============================================================================
+# GitHub Actions cron — copy this file to your repo as:
+#   .github/workflows/sheets-dashboard-cron.yml
+#
+# Required repository secrets (Settings → Secrets → Actions):
+#   DASHBOARD_ENV_FILE  — full contents of .env (multiline)
+#   GCP_SA_KEY          — service account JSON (BigQuery + Sheets)
+#
+# Manual test: Actions → Sheets Dashboard Cron → Run workflow
+# =============================================================================
+
+name: Sheets Dashboard Cron
+
+on:
+  schedule:
+    # Runs every 15 minutes UTC; dispatcher fires when IST cron window matches config
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sheets-dashboard-cron
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write .env from secret
+        env:
+          DASHBOARD_ENV_FILE: ${{ secrets.DASHBOARD_ENV_FILE }}
+        run: |
+          if [ -z "$DASHBOARD_ENV_FILE" ]; then
+            echo "::error::Add DASHBOARD_ENV_FILE secret (paste full .env contents)"
+            exit 1
+          fi
+          printf '%s' "$DASHBOARD_ENV_FILE" > .env
+
+      - name: GCP service account
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -z "$GCP_SA_KEY" ]; then
+            echo "::error::Add GCP_SA_KEY secret (service account JSON)"
+            exit 1
+          fi
+          printf '%s' "$GCP_SA_KEY" > gcp-sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$PWD/gcp-sa.json" >> "$GITHUB_ENV"
+
+      - name: Rolling dashboard sync
+        run: npm run dispatch
+
+# NOTE: Schedule time (e.g. 11 AM IST) is defined in config/dashboard.config.ts.
+# This workflow runs every 15 min; for exact IST timing, use cron/local-scheduler.ts
+# on a always-on host, OR add a small dispatcher script like the main cron repo.
+#
+# Simple alternative — single daily run at 5:30 AM UTC (= 11:00 AM IST):
+#   schedule:
+#     - cron: '30 5 * * *'
+#   steps:
+#     - run: npm run sync -- rolling

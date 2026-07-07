@@ -1,0 +1,27 @@
+{
+  "name": "plug-and-play-sheets-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Config-driven BigQuery → Google Sheets daily dashboard kit",
+  "scripts": {
+    "sync": "tsx src/index.ts",
+    "cron": "tsx cron/local-scheduler.ts",
+    "dispatch": "tsx cron/github-dispatch.ts",
+    "dispatch:force": "tsx cron/github-dispatch.ts --force"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^8.1.1",
+    "dotenv": "^17.2.3",
+    "googleapis": "^144.0.0",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

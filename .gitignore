@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env
+gcp-sa.json
+*.log
+.DS_Store
