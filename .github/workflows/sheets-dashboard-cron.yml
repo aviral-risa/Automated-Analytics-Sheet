@@ -1,0 +1,50 @@
+name: Sheets Dashboard Cron
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sheets-dashboard-cron
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write .env from secret
+        env:
+          DASHBOARD_ENV_FILE: ${{ secrets.DASHBOARD_ENV_FILE }}
+        run: |
+          if [ -z "$DASHBOARD_ENV_FILE" ]; then
+            echo "::error::Add DASHBOARD_ENV_FILE secret (paste full .env contents)"
+            exit 1
+          fi
+          printf '%s' "$DASHBOARD_ENV_FILE" > .env
+
+      - name: GCP service account
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -z "$GCP_SA_KEY" ]; then
+            echo "::error::Add GCP_SA_KEY secret (service account JSON)"
+            exit 1
+          fi
+          printf '%s' "$GCP_SA_KEY" > gcp-sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$PWD/gcp-sa.json" >> "$GITHUB_ENV"
+
+      - name: Rolling dashboard sync
+        run: npm run dispatch
