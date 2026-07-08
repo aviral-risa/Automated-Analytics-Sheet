@@ -150,6 +150,8 @@ export const dashboardConfig = {
   // Sync behaviour
   // ---------------------------------------------------------------------------
   sync: {
+    /** Orders count as unique if (regimen|mrn|dos) not seen in prior N calendar days */
+    uniqueLookbackDays: 30,
     /** On each scheduled run, re-sync this many calendar days (updates pending → auth) */
     rollingWindowDays: 30,
 

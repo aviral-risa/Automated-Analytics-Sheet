@@ -18,7 +18,7 @@ function bqTable(table: string): string {
 /** Inject config values into SQL template placeholders */
 export function loadSql(fileName: string): string {
   const raw = readFileSync(resolve(SQL_ROOT, fileName), 'utf8');
-  const { bigquery, timezone, statuses, assignment } = dashboardConfig;
+  const { bigquery, timezone, statuses, assignment, sync } = dashboardConfig;
 
   const replacements: Record<string, string> = {
     '{{BQ_TABLE_ORDER}}': bqTable(bigquery.tables.order),
@@ -26,6 +26,7 @@ export function loadSql(fileName: string): string {
     '{{BQ_TABLE_DEMOGRAPHICS}}': bqTable(bigquery.tables.demographics),
     '{{BQ_TABLE_AUTH_COMMENTS}}': bqTable(bigquery.tables.authComments),
     '{{TIMEZONE}}': timezone,
+    '{{UNIQUE_LOOKBACK_DAYS}}': String(sync.uniqueLookbackDays ?? 30),
     '{{AUTHORIZED_STATUSES_SQL}}': sqlQuoteList(statuses.authorized),
     '{{NAR_STATUSES_SQL}}': sqlQuoteList(statuses.nar),
     '{{PENDING_STATUSES_SQL}}': sqlQuoteList(statuses.pending),

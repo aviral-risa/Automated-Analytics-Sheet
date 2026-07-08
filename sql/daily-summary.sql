@@ -56,12 +56,41 @@ orders_on_day AS (
     o.regimen_name,
     o.date_of_service,
     o.assigned_to_name,
-    LOWER(TRIM(COALESCE(s.master_auth_status, ''))) AS auth_status
+    LOWER(TRIM(COALESCE(s.master_auth_status, ''))) AS auth_status,
+    CONCAT(
+      COALESCE(o.regimen_name, ''),
+      '|',
+      COALESCE(d.patient_id, o.patient_id),
+      '|',
+      COALESCE(CAST(o.date_of_service AS STRING), '')
+    ) AS case_key
   FROM latest_order AS o
   LEFT JOIN latest_status AS s ON s.order_id = o.order_id
   LEFT JOIN latest_demo AS d ON d.order_id = o.order_id
   CROSS JOIN params AS p
   WHERE DATE(o.created_at, '{{TIMEZONE}}') = p.report_date
+),
+orders_in_lookback AS (
+  SELECT
+    CONCAT(
+      COALESCE(o.regimen_name, ''),
+      '|',
+      COALESCE(d.patient_id, o.patient_id),
+      '|',
+      COALESCE(CAST(o.date_of_service AS STRING), '')
+    ) AS case_key,
+    DATE(o.created_at, '{{TIMEZONE}}') AS created_local
+  FROM latest_order AS o
+  LEFT JOIN latest_demo AS d ON d.order_id = o.order_id
+  CROSS JOIN params AS p
+  WHERE DATE(o.created_at, '{{TIMEZONE}}') BETWEEN DATE_SUB(p.report_date, INTERVAL {{UNIQUE_LOOKBACK_DAYS}} DAY)
+    AND p.report_date
+),
+prior_case_keys AS (
+  SELECT DISTINCT w.case_key
+  FROM orders_in_lookback AS w
+  CROSS JOIN params AS p
+  WHERE w.created_local < p.report_date
 ),
 orders_with_denial_comment AS (
   SELECT DISTINCT c.order_id
@@ -83,10 +112,11 @@ cohort_outcomes AS (
 day_agg AS (
   SELECT
     COUNT(*) AS cases_added,
-    COUNT(DISTINCT CONCAT(COALESCE(regimen_name, ''), '|', mrn, '|', COALESCE(CAST(date_of_service AS STRING), ''))) AS unique_cases_added,
+    COUNTIF(pk.case_key IS NULL) AS unique_cases_added,
     COUNTIF(LOWER(TRIM(COALESCE(assigned_to_name, ''))) NOT IN ({{UNASSIGNED_LABELS_SQL}})) AS allotted_cases,
     STRING_AGG(DISTINCT IF(LOWER(TRIM(COALESCE(assigned_to_name, ''))) IN ({{UNASSIGNED_LABELS_SQL}}), mrn, NULL), ', ') AS non_allotted_mrns
-  FROM orders_on_day
+  FROM orders_on_day AS od
+  LEFT JOIN prior_case_keys AS pk ON pk.case_key = od.case_key
 ),
 outcome_agg AS (
   SELECT
